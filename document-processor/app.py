@@ -442,16 +442,50 @@ def reindex_document(document_id):
         if not metadata:
             return jsonify({'error': 'Document not found'}), 404
 
-        # Verificar que tenga embeddings URI
+        # Verificar que tenga embeddings URI o chunks
         embeddings_uri = metadata.get('uris', {}).get('embeddings')
-        if not embeddings_uri:
-            return jsonify({'error': 'Document embeddings not found'}), 404
+        chunks_uri = metadata.get('uris', {}).get('chunks')
+
+        if not embeddings_uri or not chunks_uri:
+            return jsonify({'error': 'Document embeddings or chunks not found'}), 404
 
         # Intentar indexar
         try:
             index_mgr = get_index_manager()
-            index_mgr.import_embeddings(embeddings_uri, async_mode=False)
-            logger.info(f"Document {document_id} reindexed successfully")
+
+            if _use_pinecone:
+                # PINECONE: Cargar chunks y embeddings, luego hacer upsert
+                logger.info(f"Reindexing with Pinecone for document {document_id}")
+
+                # Cargar chunks desde GCS
+                chunks = storage.get_document_chunks(document_id)
+                if not chunks:
+                    raise ValueError("No chunks found in storage")
+
+                # Cargar embeddings desde GCS
+                import json
+                embeddings_blob_name = embeddings_uri.replace(f"gs://{storage.bucket_name}/", "")
+                embeddings_blob = storage.bucket.blob(embeddings_blob_name)
+                embeddings_data = embeddings_blob.download_as_string().decode('utf-8')
+
+                # Parsear JSONL y extraer embeddings
+                embeddings = []
+                for line in embeddings_data.strip().split('\n'):
+                    data = json.loads(line)
+                    embeddings.append(data['embedding'])
+
+                # Upsert a Pinecone
+                index_mgr.upsert_embeddings(
+                    document_id=document_id,
+                    chunks=chunks,
+                    embeddings=embeddings
+                )
+                logger.info(f"Document {document_id} reindexed successfully in Pinecone")
+            else:
+                # MATCHING ENGINE: Usar import_embeddings
+                logger.info(f"Reindexing with Matching Engine for document {document_id}")
+                index_mgr.import_embeddings(embeddings_uri, async_mode=False)
+                logger.info(f"Document {document_id} reindexed successfully in Matching Engine")
 
             # Actualizar metadata
             metadata['status'] = 'ready'
@@ -468,7 +502,7 @@ def reindex_document(document_id):
             }), 200
 
         except Exception as exc:
-            logger.error(f"Failed to reindex document {document_id}: {str(exc)}")
+            logger.error(f"Failed to reindex document {document_id}: {str(exc)}", exc_info=True)
             return jsonify({
                 'error': 'Failed to reindex document',
                 'details': str(exc)
