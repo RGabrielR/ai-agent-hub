@@ -33,6 +33,7 @@ import {
   CheckCircle,
   XCircle
 } from "lucide-react"
+import { useTheme } from "./theme-provider"
 
 interface AIModelConfig {
   id: string
@@ -44,6 +45,7 @@ interface AIModelConfig {
 
 export function SettingsSection() {
   const { toast } = useToast()
+  const { setTheme } = useTheme()
   const [backendStatus, setBackendStatus] = useState({
     documentProcessor: false,
     ragBackend: false,
@@ -117,6 +119,10 @@ export function SettingsSection() {
         }
 
         setSettings(parsed)
+
+        // Sincronizar el tema al cargar los settings
+        const themeValue = parsed.darkMode === "auto" ? "system" : parsed.darkMode
+        setTheme(themeValue as "light" | "dark" | "system")
       }
     } catch (error) {
       console.error('Error loading settings:', error)
@@ -152,12 +158,27 @@ export function SettingsSection() {
 
   const updateSetting = (key: string, value: any) => {
     setSettings(prev => ({ ...prev, [key]: value }))
+    console.log(`Setting updated: ${key} =`, value)
+
+    // Cambiar tema en tiempo real cuando se selecciona (sin esperar a guardar)
+    if (key === 'darkMode') {
+      const themeValue = value === "auto" ? "system" : value
+      setTheme(themeValue as "light" | "dark" | "system")
+    }
+
     setUnsavedChanges(true)
   }
 
   const saveSettings = () => {
+    console.log("Saving settings:", settings)
     try {
       localStorage.setItem('rag-settings', JSON.stringify(settings))
+
+      // Sincronizar el tema con ThemeProvider
+      // Mapear: "auto" → "system", "light" → "light", "dark" → "dark"
+      const themeValue = settings.darkMode === "auto" ? "system" : settings.darkMode
+      setTheme(themeValue as "light" | "dark" | "system")
+
       setUnsavedChanges(false)
       toast({
         title: "Configuración guardada",
