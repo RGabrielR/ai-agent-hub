@@ -159,13 +159,6 @@ export function SettingsSection() {
   const updateSetting = (key: string, value: any) => {
     setSettings(prev => ({ ...prev, [key]: value }))
     console.log(`Setting updated: ${key} =`, value)
-
-    // Cambiar tema en tiempo real cuando se selecciona (sin esperar a guardar)
-    if (key === 'darkMode') {
-      const themeValue = value === "auto" ? "system" : value
-      setTheme(themeValue as "light" | "dark" | "system")
-    }
-
     setUnsavedChanges(true)
   }
 
