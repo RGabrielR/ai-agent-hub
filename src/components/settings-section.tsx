@@ -52,7 +52,7 @@ export function SettingsSection() {
 
   const defaultSettings = {
     // AI Model Settings
-    selectedModel: "deepseek-chat", // Cambiado a DeepSeek que funciona
+    selectedModel: "models/gemini-2.5-flash", // Modelo por defecto que funciona
     temperature: [0.7],
     maxResponseLength: [2048],
     topP: [0.9],
@@ -96,35 +96,22 @@ export function SettingsSection() {
       if (savedSettings) {
         const parsed = JSON.parse(savedSettings)
 
-        // Migrar CUALQUIER modelo de Gemini a DeepSeek (que funciona)
-        const geminiModels = [
-          'gemini-pro',
-          'gemini-pro-vision',
-          'models/gemini-pro',
-          'models/gemini-pro-vision',
-          'models/gemini-1.5-flash',
-          'models/gemini-1.5-pro',
+        // Migrar modelos legacy o deshabilitados al modelo por defecto
+        const validModels = [
           'models/gemini-2.0-flash-exp',
-          'models/gemini-2.5-flash',
-          'gemini-1.5-flash',
-          'gemini-1.5-pro',
-          'gemini-2.0-flash-exp',
-          'gemini-2.5-flash'
+          'models/gemini-2.5-flash'
         ]
 
-        const isGemini = geminiModels.includes(parsed.selectedModel) ||
-                        (parsed.selectedModel && parsed.selectedModel.includes('gemini'))
-
-        const needsMigration = isGemini || !parsed.selectedModel
+        const needsMigration = !parsed.selectedModel || !validModels.includes(parsed.selectedModel)
 
         if (needsMigration) {
-          console.warn(`⚠️ Migrating Gemini model "${parsed.selectedModel}" to DeepSeek Chat (funcionando)`)
-          parsed.selectedModel = 'deepseek-chat'
+          console.warn(`⚠️ Migrating invalid model "${parsed.selectedModel}" to default model`)
+          parsed.selectedModel = defaultSettings.selectedModel
           // Guardar la configuración migrada inmediatamente
           localStorage.setItem('rag-settings', JSON.stringify(parsed))
           toast({
             title: "⚠️ Modelo actualizado",
-            description: `Los modelos de Gemini no están disponibles. Cambiado a DeepSeek Chat.`,
+            description: `Modelo actualizado a ${defaultSettings.selectedModel}`,
             duration: 5000,
           })
         }
@@ -148,13 +135,6 @@ export function SettingsSection() {
 
   const aiModels: AIModelConfig[] = [
     {
-      id: "models/gemini-2.0-flash-exp",
-      name: "Gemini 2.0 Flash (Experimental)",
-      description: "✅ Última generación, multimodal, funcionando",
-      maxTokens: 8192,
-      available: true
-    },
-    {
       id: "models/gemini-2.5-flash",
       name: "Gemini 2.5 Flash",
       description: "✅ Modelo actual, equilibrio perfecto velocidad/calidad (recomendado)",
@@ -162,32 +142,11 @@ export function SettingsSection() {
       available: true
     },
     {
-      id: "models/gemini-1.5-flash",
-      name: "Gemini 1.5 Flash",
-      description: "⚠️ No disponible en Vertex AI (requiere configurar GENAI_API_KEY)",
+      id: "models/gemini-2.0-flash-exp",
+      name: "Gemini 2.0 Flash (Experimental)",
+      description: "✅ Última generación, multimodal, funcionando",
       maxTokens: 8192,
-      available: false
-    },
-    {
-      id: "models/gemini-1.5-pro",
-      name: "Gemini 1.5 Pro",
-      description: "⚠️ No disponible en Vertex AI (requiere configurar GENAI_API_KEY)",
-      maxTokens: 8192,
-      available: false
-    },
-    {
-      id: "deepseek-chat",
-      name: "DeepSeek V3",
-      description: "⚠️ Requiere saldo en cuenta DeepSeek ($0.27/M tokens)",
-      maxTokens: 8192,
-      available: false
-    },
-    {
-      id: "deepseek-reasoner",
-      name: "DeepSeek R1",
-      description: "⚠️ Requiere saldo en cuenta DeepSeek (razonamiento complejo)",
-      maxTokens: 8192,
-      available: false
+      available: true
     }
   ]
 
