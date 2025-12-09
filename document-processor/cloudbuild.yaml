@@ -32,6 +32,13 @@ steps:
       - '--allow-unauthenticated'
       - '--timeout'
       - '900'
+      - '--cpu-boost'
+      - '--cpu'
+      - '2'
+      - '--memory'
+      - '1Gi'
+      - '--concurrency'
+      - '80'
 
 images:
   - 'us-central1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/rag-document-processor:$BUILD_ID'

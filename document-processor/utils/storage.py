@@ -3,6 +3,7 @@ Interacción con Google Cloud Storage
 """
 import os
 import json
+import time
 from typing import List, Dict, Optional, Tuple
 
 from google.cloud import storage
@@ -24,6 +25,12 @@ class StorageManager:
 
         self.client = storage.Client(project=self.project_id)
         self.bucket = self.client.bucket(self.bucket_name)
+
+        # Cache para list_documents (TTL: 30 segundos)
+        self._list_cache = None
+        self._list_cache_time = 0
+        self._list_cache_ttl = 30  # segundos
+
         logger.info(f"Storage manager initialized for bucket: {self.bucket_name}")
 
     def upload_document(self, file_path: str, document_id: str, original_filename: str) -> str:
@@ -125,14 +132,31 @@ class StorageManager:
                 json.dumps(metadata, ensure_ascii=False),
                 content_type='application/json'
             )
+
+            # Invalidar caché al modificar metadatos
+            self._invalidate_list_cache()
+
             logger.info(f"Metadata saved to {gcs_uri}")
             return gcs_uri
         except Exception as e:
             logger.error(f"Error saving document metadata: {str(e)}")
             raise
 
+    def _invalidate_list_cache(self):
+        """Invalida el caché de list_documents"""
+        self._list_cache = None
+        self._list_cache_time = 0
+        logger.debug("List cache invalidated")
+
     def list_documents(self) -> List[Dict]:
-        """Devuelve la metadata de todos los documentos almacenados."""
+        """Devuelve la metadata de todos los documentos almacenados con caché."""
+        # Verificar si el caché es válido
+        current_time = time.time()
+        if self._list_cache is not None and (current_time - self._list_cache_time) < self._list_cache_ttl:
+            logger.debug("Returning cached document list")
+            return self._list_cache
+
+        # Caché expirado o no existe, obtener datos de GCS
         documents: List[Dict] = []
         try:
             for blob in self.client.list_blobs(self.bucket, prefix='metadata/'):
@@ -143,7 +167,14 @@ class StorageManager:
                     documents.append(data)
                 except json.JSONDecodeError:
                     logger.warning(f"Invalid metadata format in {blob.name}")
+
             documents.sort(key=lambda doc: doc.get('uploaded_at', ''), reverse=True)
+
+            # Actualizar caché
+            self._list_cache = documents
+            self._list_cache_time = current_time
+            logger.info(f"Document list cached ({len(documents)} documents)")
+
             return documents
         except Exception as e:
             logger.error(f"Error listing documents: {str(e)}")
@@ -169,6 +200,8 @@ class StorageManager:
                 deleted_any = True
 
             if deleted_any:
+                # Invalidar caché al eliminar documento
+                self._invalidate_list_cache()
                 logger.info(f"Deleted document {document_id} from storage")
             else:
                 logger.warning(f"No files found to delete for document {document_id}")

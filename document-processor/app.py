@@ -37,34 +37,51 @@ CORS(app,
      send_wildcard=True,
      always_send=True)
 
-# Inicializar servicios
-try:
-    embedding_generator = EmbeddingGenerator()
-    storage_manager = StorageManager()
+# Servicios - Lazy loading para cold start más rápido
+_storage_manager = None
+_embedding_generator = None
+_index_manager = None
+_pinecone_manager = None
+_use_pinecone = bool(os.environ.get("PINECONE_API_KEY"))
 
-    # Usar Pinecone si está configurado, sino Matching Engine
-    use_pinecone = bool(os.environ.get("PINECONE_API_KEY"))
 
-    if use_pinecone:
-        pinecone_manager = PineconeManager()
-        index_manager = None
-        logger.info("✅ Services initialized with PINECONE (ultra-fast indexing)")
+def get_storage_manager():
+    """Inicializa StorageManager solo cuando se necesita (lazy loading)"""
+    global _storage_manager
+    if _storage_manager is None:
+        _storage_manager = StorageManager()
+        logger.info("✅ StorageManager initialized")
+    return _storage_manager
+
+
+def get_embedding_generator():
+    """Inicializa EmbeddingGenerator solo cuando se necesita (lazy loading)"""
+    global _embedding_generator
+    if _embedding_generator is None:
+        _embedding_generator = EmbeddingGenerator()
+        logger.info("✅ EmbeddingGenerator initialized")
+    return _embedding_generator
+
+
+def get_index_manager():
+    """Inicializa IndexManager o PineconeManager solo cuando se necesita (lazy loading)"""
+    global _index_manager, _pinecone_manager
+
+    if _use_pinecone:
+        if _pinecone_manager is None:
+            _pinecone_manager = PineconeManager()
+            logger.info("✅ PineconeManager initialized (ultra-fast indexing)")
+        return _pinecone_manager
     else:
-        index_manager = IndexManager()
-        pinecone_manager = None
-        logger.info("Services initialized with Matching Engine")
-
-except Exception as e:
-    logger.error(f"Failed to initialize services: {str(e)}")
-    embedding_generator = None
-    storage_manager = None
-    index_manager = None
-    pinecone_manager = None
+        if _index_manager is None:
+            _index_manager = IndexManager()
+            logger.info("✅ IndexManager initialized")
+        return _index_manager
 
 
 def services_ready() -> bool:
-    """Verifica que los servicios requeridos estén inicializados."""
-    return bool(embedding_generator and storage_manager and (index_manager or pinecone_manager))
+    """Verifica que los servicios requeridos estén disponibles (no necesariamente inicializados)"""
+    return True  # Los servicios se inicializan on-demand
 
 
 @app.route('/health', methods=['GET'])
@@ -132,16 +149,18 @@ def upload_document():
                 return jsonify({'error': 'Failed to create text chunks'}), 500
 
             logger.info(f"Generating embeddings for {len(chunks)} chunks")
-            embeddings = embedding_generator.generate_embeddings(chunks)
+            embedding_gen = get_embedding_generator()
+            embeddings = embedding_gen.generate_embeddings(chunks)
 
             logger.info("Uploading original document to GCS")
-            doc_uri = storage_manager.upload_document(temp_path, document_id, filename)
+            storage = get_storage_manager()
+            doc_uri = storage.upload_document(temp_path, document_id, filename)
 
             logger.info("Uploading processed chunks to GCS")
-            chunks_uri = storage_manager.upload_text_chunks(document_id, chunks)
+            chunks_uri = storage.upload_text_chunks(document_id, chunks)
 
             logger.info("Uploading embeddings metadata")
-            embeddings_uri = storage_manager.upload_embeddings_metadata(
+            embeddings_uri = storage.upload_embeddings_metadata(
                 document_id,
                 embeddings,
                 chunks
@@ -155,14 +174,15 @@ def upload_document():
             index_error = None
             indexing_status = "indexing"
 
-            if pinecone_manager:
+            if _use_pinecone:
                 # PINECONE: Indexación ultra-rápida (milisegundos)
                 logger.info(
                     "🚀 Upserting to Pinecone (fast indexing, size=%d bytes)",
                     file_size
                 )
                 try:
-                    result = pinecone_manager.upsert_embeddings(
+                    index_mgr = get_index_manager()  # Returns pinecone_manager
+                    result = index_mgr.upsert_embeddings(
                         document_id=document_id,
                         chunks=chunks,
                         embeddings=embeddings
@@ -175,7 +195,7 @@ def upload_document():
                     index_error = str(exc)
                     indexing_status = "index_failed"
 
-            elif index_manager:
+            else:
                 # MATCHING ENGINE: Indexación lenta con async
                 logger.info(
                     "Updating Matching Engine index with new embeddings (async=True, size=%d bytes)",
@@ -222,7 +242,8 @@ def upload_document():
                         )
 
                 try:
-                    index_manager.import_embeddings(
+                    index_mgr = get_index_manager()  # Returns index_manager
+                    index_mgr.import_embeddings(
                         embeddings_uri,
                         async_mode=True,
                         on_complete=on_indexing_complete
@@ -256,7 +277,7 @@ def upload_document():
             if index_error:
                 metadata['index_error'] = index_error
 
-            metadata_uri = storage_manager.save_document_metadata(document_id, metadata)
+            metadata_uri = storage.save_document_metadata(document_id, metadata)
             metadata['uris']['metadata'] = metadata_uri
 
             # Build response message based on status
@@ -313,7 +334,8 @@ def list_documents():
     if not services_ready():
         return jsonify({'error': 'Service unavailable'}), 503
     try:
-        documents = storage_manager.list_documents()
+        storage = get_storage_manager()
+        documents = storage.list_documents()
         return jsonify({'documents': documents}), 200
     except Exception as e:
         logger.error(f"Error listing documents: {str(e)}", exc_info=True)
@@ -325,11 +347,12 @@ def get_document_info(document_id):
     if not services_ready():
         return jsonify({'error': 'Service unavailable'}), 503
     try:
-        metadata = storage_manager.get_document_metadata(document_id)
+        storage = get_storage_manager()
+        metadata = storage.get_document_metadata(document_id)
         if not metadata:
             return jsonify({'error': 'Document not found'}), 404
 
-        chunks = storage_manager.get_document_chunks(document_id)
+        chunks = storage.get_document_chunks(document_id)
         metadata['chunks'] = chunks
         metadata['total_chunks'] = len(chunks)
         return jsonify(metadata), 200
@@ -345,7 +368,8 @@ def get_document_status(document_id):
         return jsonify({'error': 'Service unavailable'}), 503
 
     try:
-        metadata = storage_manager.get_document_metadata(document_id)
+        storage = get_storage_manager()
+        metadata = storage.get_document_metadata(document_id)
         if not metadata:
             return jsonify({'error': 'Document not found'}), 404
 
@@ -373,7 +397,8 @@ def delete_document(document_id):
     if not services_ready():
         return jsonify({'error': 'Service unavailable'}), 503
     try:
-        deleted = storage_manager.delete_document(document_id)
+        storage = get_storage_manager()
+        deleted = storage.delete_document(document_id)
         if not deleted:
             return jsonify({'error': 'Document not found'}), 404
         return jsonify({'status': 'deleted', 'document_id': document_id}), 200
@@ -387,7 +412,8 @@ def download_document(document_id):
     if not services_ready():
         return jsonify({'error': 'Service unavailable'}), 503
     try:
-        content, filename, mime_type = storage_manager.download_document_content(document_id)
+        storage = get_storage_manager()
+        content, filename, mime_type = storage.download_document_content(document_id)
         return send_file(
             BytesIO(content),
             mimetype=mime_type or 'application/octet-stream',
@@ -411,7 +437,8 @@ def reindex_document(document_id):
         logger.info(f"Reindexing document {document_id}")
 
         # Obtener metadata del documento
-        metadata = storage_manager.get_document_metadata(document_id)
+        storage = get_storage_manager()
+        metadata = storage.get_document_metadata(document_id)
         if not metadata:
             return jsonify({'error': 'Document not found'}), 404
 
@@ -422,7 +449,8 @@ def reindex_document(document_id):
 
         # Intentar indexar
         try:
-            index_manager.import_embeddings(embeddings_uri, async_mode=False)
+            index_mgr = get_index_manager()
+            index_mgr.import_embeddings(embeddings_uri, async_mode=False)
             logger.info(f"Document {document_id} reindexed successfully")
 
             # Actualizar metadata
@@ -431,7 +459,7 @@ def reindex_document(document_id):
             if 'index_error' in metadata:
                 del metadata['index_error']
 
-            storage_manager.save_document_metadata(document_id, metadata)
+            storage.save_document_metadata(document_id, metadata)
 
             return jsonify({
                 'status': 'success',
@@ -469,7 +497,9 @@ def sync_documents():
         logger.info("Starting document synchronization")
 
         # Obtener todos los documentos
-        documents = storage_manager.list_documents()
+        storage = get_storage_manager()
+        index_mgr = get_index_manager()
+        documents = storage.list_documents()
 
         # Tiempo límite: documentos en 'indexing' por más de 5 minutos
         STALE_THRESHOLD_MINUTES = 5
@@ -505,7 +535,7 @@ def sync_documents():
                         logger.warning(f"Document {document_id} stale in 'indexing' state for {time_since_upload}")
 
                         # Verificar si los chunks existen en GCS
-                        chunks = storage_manager.get_document_chunks(document_id)
+                        chunks = storage.get_document_chunks(document_id)
 
                         if not chunks:
                             sync_results['chunks_missing'] += 1
@@ -515,7 +545,7 @@ def sync_documents():
                             doc['status'] = 'index_failed'
                             doc['indexed'] = False
                             doc['index_error'] = 'Chunks not found in storage after indexing timeout'
-                            storage_manager.save_document_metadata(document_id, doc)
+                            storage.save_document_metadata(document_id, doc)
                             sync_results['marked_as_failed'] += 1
 
                             sync_results['details'].append({
@@ -533,14 +563,14 @@ def sync_documents():
                                 logger.info(f"Attempting to reindex document {document_id}")
 
                                 try:
-                                    index_manager.import_embeddings(embeddings_uri, async_mode=False)
+                                    index_mgr.import_embeddings(embeddings_uri, async_mode=False)
 
                                     # Actualizar metadata como exitoso
                                     doc['status'] = 'ready'
                                     doc['indexed'] = True
                                     if 'index_error' in doc:
                                         del doc['index_error']
-                                    storage_manager.save_document_metadata(document_id, doc)
+                                    storage.save_document_metadata(document_id, doc)
 
                                     sync_results['reindex_succeeded'] += 1
                                     logger.info(f"Document {document_id} successfully reindexed")
@@ -560,7 +590,7 @@ def sync_documents():
                                     doc['status'] = 'index_failed'
                                     doc['indexed'] = False
                                     doc['index_error'] = f"Reindex attempt failed: {str(reindex_error)}"
-                                    storage_manager.save_document_metadata(document_id, doc)
+                                    storage.save_document_metadata(document_id, doc)
                                     sync_results['marked_as_failed'] += 1
 
                                     sync_results['details'].append({
@@ -575,7 +605,7 @@ def sync_documents():
                                 doc['status'] = 'index_failed'
                                 doc['indexed'] = False
                                 doc['index_error'] = 'Embeddings URI not found'
-                                storage_manager.save_document_metadata(document_id, doc)
+                                storage.save_document_metadata(document_id, doc)
                                 sync_results['marked_as_failed'] += 1
 
                                 sync_results['details'].append({
