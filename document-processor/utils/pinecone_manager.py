@@ -35,14 +35,16 @@ class PineconeManager:
         document_id: str,
         chunks: List[str],
         embeddings: List[List[float]],
+        batch_size: int = 40,
     ) -> Dict[str, Any]:
         """
-        Upsert embeddings to Pinecone index (SUPER FAST - milliseconds).
+        Upsert embeddings to Pinecone index with batching (SUPER FAST - milliseconds).
 
         Args:
             document_id: Unique document identifier
             chunks: List of text chunks
             embeddings: List of embedding vectors
+            batch_size: Number of vectors to upsert per batch (default: 40, reduced to stay under 2MB limit)
 
         Returns:
             Dictionary with upsert results
@@ -55,7 +57,7 @@ class PineconeManager:
                 metadata = {
                     "document_id": document_id,
                     "chunk_index": i,
-                    "text": chunk[:1000],  # Limit text size in metadata
+                    "text": chunk[:300],  # Reduced to 300 chars to stay well under 2MB payload limit
                 }
                 vectors.append({
                     "id": vector_id,
@@ -63,15 +65,26 @@ class PineconeManager:
                     "metadata": metadata
                 })
 
-            # Upsert to Pinecone (FAST - typically <100ms)
-            logger.info(f"Upserting {len(vectors)} vectors to Pinecone for document {document_id}")
-            upsert_response = self.index.upsert(vectors=vectors)
+            # Upsert to Pinecone in batches
+            total_vectors = len(vectors)
+            total_upserted = 0
 
-            logger.info(f"✅ Successfully upserted {upsert_response['upserted_count']} vectors to Pinecone")
+            logger.info(f"Upserting {total_vectors} vectors to Pinecone in batches of {batch_size} for document {document_id}")
+
+            for i in range(0, total_vectors, batch_size):
+                batch = vectors[i:i + batch_size]
+                batch_num = (i // batch_size) + 1
+                total_batches = (total_vectors + batch_size - 1) // batch_size
+
+                logger.info(f"Upserting batch {batch_num}/{total_batches} ({len(batch)} vectors)")
+                upsert_response = self.index.upsert(vectors=batch)
+                total_upserted += upsert_response.get('upserted_count', 0)
+
+            logger.info(f"✅ Successfully upserted {total_upserted} vectors to Pinecone")
 
             return {
                 "success": True,
-                "upserted_count": upsert_response['upserted_count'],
+                "upserted_count": total_upserted,
                 "document_id": document_id
             }
 
