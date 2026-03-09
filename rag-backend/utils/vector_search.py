@@ -3,10 +3,6 @@ Vector search helpers backed by Vertex AI Matching Engine.
 """
 import os
 from typing import List, Dict
-
-from google.cloud import aiplatform
-from vertexai.language_models import TextEmbeddingModel
-
 import logging
 
 logger = logging.getLogger(__name__)
@@ -16,6 +12,10 @@ class VectorSearch:
     """Wrapper around Vertex AI Matching Engine for nearest-neighbour lookups."""
 
     def __init__(self) -> None:
+        # Lazy imports — solo se cargan si se usa Vertex AI Matching Engine
+        from google.cloud import aiplatform
+        from vertexai.language_models import TextEmbeddingModel
+
         self.project_id = os.environ.get("PROJECT_ID")
         self.region = os.environ.get("REGION", "us-central1")
         self.index_endpoint = os.environ.get("INDEX_ENDPOINT")
@@ -34,7 +34,7 @@ class VectorSearch:
 
         embedding_model_name = os.environ.get("EMBEDDING_MODEL_NAME", "text-embedding-004")
         try:
-            self.embedding_model = TextEmbeddingModel.from_pretrained(embedding_model_name)
+            self.embedding_model = TextEmbeddingModel.from_pretrained(embedding_model_name)  # noqa: F821
             logger.info("Loaded embedding model: %s", embedding_model_name)
         except Exception as exc:
             fallback_name = "text-multilingual-embedding-002"

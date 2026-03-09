@@ -90,3 +90,5 @@ nul
 
 # Test files
 test-*.json
+
+.vercel

@@ -34,9 +34,13 @@ steps:
       - '900'
       - '--cpu-boost'
       - '--cpu'
-      - '2'
+      - '1'
       - '--memory'
-      - '1Gi'
+      - '512Mi'
+      - '--max-instances'
+      - '2'
+      - '--min-instances'
+      - '0'
       - '--concurrency'
       - '80'
 
@@ -46,5 +50,3 @@ images:
 
 options:
   logging: CLOUD_LOGGING_ONLY
-
-serviceAccount: 'projects/$PROJECT_ID/serviceAccounts/117511395113-compute@developer.gserviceaccount.com'

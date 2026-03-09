@@ -72,9 +72,14 @@ interface SavedSettings {
   selectedModel?: string
 }
 
-// Configuración de URLs desde variables de entorno
+// Configuración de URLs y seguridad desde variables de entorno
 const DOCUMENT_PROCESSOR_URL = import.meta.env.VITE_DOCUMENT_PROCESSOR_URL || ''
 const RAG_BACKEND_URL = import.meta.env.VITE_RAG_BACKEND_URL || ''
+const BACKEND_API_KEY = import.meta.env.VITE_BACKEND_API_KEY || ''
+
+/** Headers base con API key para todos los requests al backend */
+const apiHeaders = (): Record<string, string> =>
+  BACKEND_API_KEY ? { 'X-API-Key': BACKEND_API_KEY } : {}
 
 class RAGService {
   private documents: Document[] = []
@@ -139,6 +144,7 @@ class RAGService {
 
       const response = await fetch(`${DOCUMENT_PROCESSOR_URL}/upload`, {
         method: 'POST',
+        headers: apiHeaders(),
         body: formData,
         signal: controller.signal,
       })
@@ -210,6 +216,7 @@ class RAGService {
     try {
       const response = await fetch(`${DOCUMENT_PROCESSOR_URL}/documents`, {
         method: 'GET',
+        headers: apiHeaders(),
       })
 
       if (!response.ok) {
@@ -234,6 +241,7 @@ class RAGService {
     try {
       const response = await fetch(`${DOCUMENT_PROCESSOR_URL}/documents/${documentId}`, {
         method: 'DELETE',
+        headers: apiHeaders(),
       })
 
       if (!response.ok) {
@@ -253,6 +261,7 @@ class RAGService {
     try {
       const response = await fetch(`${DOCUMENT_PROCESSOR_URL}/documents/${documentId}/download`, {
         method: 'GET',
+        headers: apiHeaders(),
       })
 
       if (!response.ok) {
@@ -307,6 +316,7 @@ class RAGService {
     try {
       const response = await fetch(`${DOCUMENT_PROCESSOR_URL}/documents/sync`, {
         method: 'POST',
+        headers: apiHeaders(),
       })
 
       if (!response.ok) {
@@ -330,6 +340,7 @@ class RAGService {
     try {
       const response = await fetch(`${DOCUMENT_PROCESSOR_URL}/documents/${documentId}/status`, {
         method: 'GET',
+        headers: apiHeaders(),
       })
 
       if (!response.ok) {
@@ -380,6 +391,7 @@ class RAGService {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...apiHeaders(),
         },
         body: JSON.stringify({
           question,
@@ -455,6 +467,7 @@ class RAGService {
 
       const response = await fetch(`${RAG_BACKEND_URL}/conversations/${convId}`, {
         method: 'GET',
+        headers: apiHeaders(),
       })
 
       if (!response.ok) {
@@ -525,6 +538,7 @@ class RAGService {
     try {
       const response = await fetch(`${RAG_BACKEND_URL}/conversations?limit=${limit}`, {
         method: 'GET',
+        headers: apiHeaders(),
       })
 
       if (!response.ok) {
@@ -611,7 +625,7 @@ class RAGService {
         let response: Response
 
         try {
-          response = await fetch(targetUrl, { method: 'GET' })
+          response = await fetch(targetUrl, { method: 'GET', headers: apiHeaders() })
         } catch (networkError) {
           console.error('Network error hitting knowledge base analytics:', networkError)
           continue
@@ -674,6 +688,7 @@ class RAGService {
     try {
       const response = await fetch(`${RAG_BACKEND_URL}/conversations/${conversationId}`, {
         method: 'DELETE',
+        headers: apiHeaders(),
       })
 
       if (!response.ok) {

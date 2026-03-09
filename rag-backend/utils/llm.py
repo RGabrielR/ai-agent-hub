@@ -11,9 +11,6 @@ import time
 from typing import List, Dict, Any, Tuple, Optional
 import logging
 
-import vertexai
-from vertexai.generative_models import GenerativeModel
-
 import google.genai as genai
 from google.genai import types as genai_types
 
@@ -48,11 +45,11 @@ class LLMGenerator:
         self.genai_api_key = os.environ.get('GENAI_API_KEY')
         self.deepseek_api_key = os.environ.get('DEEPSEEK_API_KEY')
 
-        if not self.project_id:
-            raise ValueError("PROJECT_ID environment variable is required")
-
-        # Determinar modo de operación
+        # Determinar modo de operación — API pública tiene prioridad
         self.use_public_api = bool(self.genai_api_key)
+
+        if not self.use_public_api and not self.project_id:
+            raise ValueError("Se requiere GENAI_API_KEY (Gemini API) o PROJECT_ID (Vertex AI)")
 
         if self.use_public_api and not self.model_name.startswith("models/"):
             self.model_name = f"models/{self.model_name}"
@@ -83,7 +80,9 @@ class LLMGenerator:
                 )
                 raise
         else:
-            # Vertex AI nativo
+            # Vertex AI nativo — import lazy para no cargar en memoria cuando no se usa
+            import vertexai
+            from vertexai.generative_models import GenerativeModel
             vertexai.init(project=self.project_id, location=self.region)
 
             try:
@@ -286,6 +285,7 @@ Respuesta:"""
         # Vertex AI path - necesitamos crear una instancia del modelo si cambió
         normalized_default = self._normalize_model_name(self.model_name)
         if normalized_model != normalized_default:
+            from vertexai.generative_models import GenerativeModel
             temp_model = GenerativeModel(normalized_model)
             response = temp_model.generate_content(
                 prompt,

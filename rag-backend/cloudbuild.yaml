@@ -1,8 +1,47 @@
 steps:
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['build', '-t', 'gcr.io/uma-tech-ai-lab/rag-agent-backend', '.']
+    args:
+      - 'build'
+      - '-t'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/rag-agent-backend:$BUILD_ID'
+      - '-t'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/rag-agent-backend:latest'
+      - '.'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - '--all-tags'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/rag-agent-backend'
+
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'rag-agent-backend'
+      - '--image'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/rag-agent-backend:latest'
+      - '--region'
+      - 'us-central1'
+      - '--platform'
+      - 'managed'
+      - '--allow-unauthenticated'
+      - '--cpu'
+      - '1'
+      - '--memory'
+      - '512Mi'
+      - '--max-instances'
+      - '2'
+      - '--min-instances'
+      - '0'
+      - '--timeout'
+      - '300'
+      - '--concurrency'
+      - '80'
+
 images:
-  - 'gcr.io/uma-tech-ai-lab/rag-agent-backend'
+  - 'us-central1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/rag-agent-backend:latest'
+
 options:
   logging: CLOUD_LOGGING_ONLY
-serviceAccount: 'projects/uma-tech-ai-lab/serviceAccounts/117511395113-compute@developer.gserviceaccount.com'

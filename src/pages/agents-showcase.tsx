@@ -19,31 +19,6 @@ const agents: Agent[] = [
     accentColor: "from-cyan-400 to-blue-500",
     openInNewTab: false,
   },
-  {
-    id: "escriba",
-    name: "Escriba",
-    description:
-      "Asistente de escritura avanzado que te ayuda a crear documentación médica profesional con precisión de IA.",
-    url: "https://scriba.synapse.umasalud.com/recorder",
-    accentColor: "from-purple-400 to-pink-500",
-    openInNewTab: true,
-  },
-  {
-    id: "smartaudit",
-    name: "SmartAudit",
-    description: "Sistema de auditoría inteligente que analiza y valida registros médicos con información automatizada.",
-    url: "/agents/smartaudit",
-    accentColor: "from-fuchsia-400 to-purple-500",
-    openInNewTab: true,
-  },
-  {
-    id: "predoc",
-    name: "Pre-Doc",
-    description: "IA de pre-documentación que agiliza la admisión de pacientes y los procesos de recopilación de historial médico.",
-    url: "/agents/predoc",
-    accentColor: "from-blue-400 to-cyan-500",
-    openInNewTab: true,
-  },
 ]
 
 export default function AgentsShowcase() {
@@ -72,26 +47,13 @@ export default function AgentsShowcase() {
       <div className="absolute top-0 left-1/4 w-96 h-96 bg-purple-600/20 rounded-full blur-[120px] animate-pulse" />
       <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-cyan-600/20 rounded-full blur-[120px] animate-pulse animation-delay-1000" />
 
-      <div className="absolute top-6 left-6 z-10">
-        <div className="relative group">
-          <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/20 to-purple-500/20 rounded-2xl blur-md group-hover:blur-lg transition-all duration-300" />
-          <img
-            src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/umahealthai_logo.jfif-9qkizuEVQlqh4H4vqbfg02KGim1JvU.jpeg"
-            alt="UMA Health AI"
-            width={80}
-            height={27}
-            className="relative object-contain rounded-2xl backdrop-blur-sm bg-white/5 p-2 border border-white/10 shadow-lg shadow-purple-900/30 transition-all duration-300 group-hover:scale-105"
-          />
-        </div>
-      </div>
-
       {/* Main content */}
       <div className="relative z-10 flex items-start justify-center min-h-screen px-8 pt-20 pb-20">
         <div className="w-full max-w-6xl mx-auto">
           {/* Main Title */}
           <div className="text-center pb-4 ">
             <h1 className="cursor-default text-5xl lg:text-6xl font-bold bg-gradient-to-r from-cyan-400 via-purple-400 to-pink-400 bg-clip-text text-transparent tracking-tight pb-4">
-             Sandbox de agentes Uma
+              Fábrica de Agentes AI
             </h1>
           </div>
 

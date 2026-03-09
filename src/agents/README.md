@@ -8,17 +8,8 @@ Esta carpeta contiene los diferentes agentes AI disponibles en la plataforma.
 /src/agents/
 ├── chatrag/          # Agente ChatRag (RAG conversacional)
 │   └── index.tsx
-├── smartaudit/       # Agente SmartAudit (Placeholder)
-│   └── index.tsx
-├── predoc/           # Agente Pre-Doc (Placeholder)
-│   └── index.tsx
 └── README.md
 ```
-
-## Navegación
-
-- **ChatRag**: Se renderiza en la misma ventana/pestaña al hacer clic
-- **SmartAudit, Pre-Doc, Escriba**: Se abren en una nueva pestaña (placeholder temporales)
 
 ## Agregar un Nuevo Agente
 
@@ -31,6 +22,3 @@ Esta carpeta contiene los diferentes agentes AI disponibles en la plataforma.
 
 - `/` - Showcase de agentes (página principal)
 - `/agents/chatrag` - ChatRag Agent
-- `/agents/smartaudit` - SmartAudit Agent (placeholder)
-- `/agents/predoc` - Pre-Doc Agent (placeholder)
-- `/agents/escriba` - Escriba Agent (placeholder)

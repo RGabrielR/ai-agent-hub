@@ -5,8 +5,7 @@ import logging
 import os
 from typing import List, Dict, Any
 from pinecone import Pinecone
-from vertexai.language_models import TextEmbeddingModel
-from google.cloud import aiplatform
+import google.genai as genai
 
 logger = logging.getLogger(__name__)
 
@@ -34,15 +33,13 @@ class PineconeSearch:
             logger.error(f"Failed to connect to Pinecone index {self.index_name}: {e}")
             raise
 
-        # Initialize embedding model
-        aiplatform.init(project=self.project_id, location=self.region)
-        embedding_model_name = os.environ.get("EMBEDDING_MODEL_NAME", "text-embedding-004")
-        try:
-            self.embedding_model = TextEmbeddingModel.from_pretrained(embedding_model_name)
-            logger.info(f"Loaded embedding model: {embedding_model_name}")
-        except Exception as exc:
-            logger.error(f"Failed to load embedding model: {exc}")
-            raise
+        # Embedding via Gemini API (mismo modelo text-embedding-004, sin Vertex AI)
+        genai_api_key = os.environ.get("GENAI_API_KEY")
+        if not genai_api_key:
+            raise ValueError("GENAI_API_KEY environment variable is required for embeddings")
+        self.genai_client = genai.Client(api_key=genai_api_key)
+        self.embedding_model_name = os.environ.get("EMBEDDING_MODEL_NAME", "text-embedding-004")
+        logger.info(f"Embedding model: {self.embedding_model_name} via Gemini API")
 
     def search_similar_documents(
         self,
@@ -63,7 +60,11 @@ class PineconeSearch:
         """
         try:
             logger.info(f"🚀 Generating embedding for query: {query[:50]}...")
-            query_embedding = self.embedding_model.get_embeddings([query])[0].values
+            embed_response = self.genai_client.models.embed_content(
+                model=self.embedding_model_name,
+                contents=[query]
+            )
+            query_embedding = embed_response.embeddings[0].values
 
             logger.info(f"🔍 Searching Pinecone for top {top_k} results")
 

@@ -24,6 +24,14 @@ export function DocumentUpload() {
   const [activeUploads, setActiveUploads] = useState(0)
   const MAX_CONCURRENT_UPLOADS = 2 // Limit concurrent uploads
 
+  const formatFileSize = (bytes: number) => {
+    if (bytes === 0) return '0 Bytes'
+    const k = 1024
+    const sizes = ['Bytes', 'KB', 'MB', 'GB']
+    const i = Math.floor(Math.log(bytes) / Math.log(k))
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+  }
+
   const handleDrag = useCallback((e: React.DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
@@ -50,9 +58,28 @@ export function DocumentUpload() {
     }
   }
 
+  const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
+
   const handleFiles = (fileList: File[]) => {
-    // Add files to queue
-    setUploadQueue(prev => [...prev, ...fileList])
+    const oversized = fileList.filter(f => f.size > MAX_FILE_SIZE)
+    const valid = fileList.filter(f => f.size <= MAX_FILE_SIZE)
+
+    // Mostrar error inmediato para archivos que exceden el límite
+    if (oversized.length > 0) {
+      const errorEntries: UploadedFile[] = oversized.map(f => ({
+        id: Math.random().toString(36).substr(2, 9),
+        name: f.name,
+        size: f.size,
+        status: 'error',
+        progress: 0,
+        errorMessage: `El archivo supera el límite de 10 MB (${formatFileSize(f.size)})`
+      }))
+      setFiles(prev => [...prev, ...errorEntries])
+    }
+
+    if (valid.length > 0) {
+      setUploadQueue(prev => [...prev, ...valid])
+    }
   }
 
   // Process upload queue with concurrency limit
@@ -141,14 +168,6 @@ export function DocumentUpload() {
     setFiles(prev => prev.filter(f => f.id !== fileId))
   }
 
-  const formatFileSize = (bytes: number) => {
-    if (bytes === 0) return '0 Bytes'
-    const k = 1024
-    const sizes = ['Bytes', 'KB', 'MB', 'GB']
-    const i = Math.floor(Math.log(bytes) / Math.log(k))
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
-  }
-
   return (
     <div className="h-full flex flex-col">
       <div className="mb-6">
@@ -178,7 +197,7 @@ export function DocumentUpload() {
               Arrastra archivos aquí o haz clic para explorar
             </p>
             <p className="text-xs text-muted-foreground">
-              Soporta PDF, DOC, TXT y otros formatos de documento
+              PDF, DOCX, TXT — máximo 10 MB por archivo
             </p>
           </div>
           <input

@@ -6,6 +6,8 @@ import os
 import uuid
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 import logging
 
 from utils import VectorSearch, PineconeSearch, LLMGenerator, ConversationManager, StorageRetriever
@@ -21,16 +23,35 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024  # 10MB max
 
-# Configurar CORS para permitir requests desde Vercel
+# CORS — solo orígenes permitidos (configurar ALLOWED_ORIGINS en producción)
+_allowed_origins = [o.strip() for o in os.environ.get("ALLOWED_ORIGINS", "http://localhost:5173").split(",")]
 CORS(app,
-     origins="*",
-     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-     allow_headers=["Content-Type", "Authorization"],
-     expose_headers=["Content-Type"],
-     supports_credentials=False,
-     max_age=3600,
-     send_wildcard=True,
-     always_send=True)
+     origins=_allowed_origins,
+     methods=["GET", "POST", "DELETE", "OPTIONS"],
+     allow_headers=["Content-Type", "X-API-Key"],
+     max_age=3600)
+
+# Rate limiting — protección contra abuso
+limiter = Limiter(
+    app=app,
+    key_func=get_remote_address,
+    default_limits=["100 per hour", "30 per minute"],
+    storage_uri="memory://",
+)
+
+# API Key — autenticación simple compartida con el frontend
+_BACKEND_API_KEY = os.environ.get("BACKEND_API_KEY", "")
+
+
+@app.before_request
+def check_api_key():
+    """Valida X-API-Key en todos los endpoints excepto /health y OPTIONS."""
+    if request.method == "OPTIONS" or request.path == "/health":
+        return
+    if _BACKEND_API_KEY:
+        provided = request.headers.get("X-API-Key", "")
+        if provided != _BACKEND_API_KEY:
+            return jsonify({"error": "Unauthorized"}), 401
 
 # Inicializar servicios
 try:
@@ -75,6 +96,7 @@ def health_check():
 
 
 @app.route('/query', methods=['POST'])
+@limiter.limit("20 per minute")
 def query_rag():
     """
     Endpoint principal para consultas RAG
@@ -344,6 +366,7 @@ def delete_conversation(conversation_id):
 
 @app.route('/analytics/knowledge-base', methods=['GET'])
 @app.route('/analytics/knowledge_base', methods=['GET'])
+@limiter.limit("10 per minute")
 def knowledge_base_analytics():
     """
     Retorna métricas agregadas para la base de conocimiento.
