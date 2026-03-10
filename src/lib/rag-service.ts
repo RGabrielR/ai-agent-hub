@@ -213,6 +213,9 @@ class RAGService {
   }
 
   private async _fetchDocumentsInternal(): Promise<Document[]> {
+    if (!DOCUMENT_PROCESSOR_URL) {
+      return []
+    }
     try {
       const response = await fetch(`${DOCUMENT_PROCESSOR_URL}/documents`, {
         method: 'GET',

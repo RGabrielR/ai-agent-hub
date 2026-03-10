@@ -91,8 +91,6 @@ export function DocumentsSection() {
       setSelectedDocuments([])
     } catch (error) {
       console.error("Error fetching documents:", error)
-      const message = error instanceof Error ? error.message : "Error al obtener los documentos"
-      setUploadError(message)
       setHasLoaded(true)
       setDocuments([])
     }
@@ -484,7 +482,7 @@ export function DocumentsSection() {
               <div className="flex items-center gap-3">
                 <AlertCircle className="w-5 h-5 text-red-600" />
                 <div className="flex-1">
-                  <p className="text-sm font-medium text-red-900">Error al subir/eliminar documento</p>
+                  <p className="text-sm font-medium text-red-900">Error en la operación</p>
                   <p className="text-sm text-red-700">{uploadError}</p>
                 </div>
                 <Button

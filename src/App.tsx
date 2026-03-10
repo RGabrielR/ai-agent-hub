@@ -1,13 +1,12 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
-import AgentsShowcase from '@/pages/agents-showcase'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import ChatRagAgent from '@/agents/chatrag'
 
 function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<AgentsShowcase />} />
-        <Route path="/agents/chatrag" element={<ChatRagAgent />} />
+        <Route path="/" element={<ChatRagAgent />} />
+        <Route path="/agents/chatrag" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
   )
