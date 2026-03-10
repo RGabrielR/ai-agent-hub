@@ -96,15 +96,15 @@ export function DocumentsSection() {
     }
   }, [toUploadedDocument])
 
-  // Lazy load knowledge base data when this section mounts
+  // Lazy load knowledge base data when this section mounts (run once)
+  const { hasLoaded: kbHasLoaded, isLoading: kbIsLoading, load: kbLoad } = knowledgeBase
   useEffect(() => {
-    // Load knowledge base if not already loaded
-    if (!knowledgeBase.hasLoaded && !knowledgeBase.isLoading) {
-      void knowledgeBase.load()
+    if (!kbHasLoaded && !kbIsLoading) {
+      void kbLoad()
     }
-    // Then load documents
     void loadDocuments()
-  }, [loadDocuments, knowledgeBase])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Polling effect for documents that are still indexing
   // Optimized: polls every 3s and stops after 5 minutes

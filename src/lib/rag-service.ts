@@ -191,8 +191,8 @@ class RAGService {
   async fetchDocuments(): Promise<Document[]> {
     const now = Date.now()
 
-    // Return cached data if fresh (< 30s old)
-    if (this.documents.length > 0 && now - this.lastDocumentsFetch < this.CACHE_DURATION) {
+    // Return cached data if fresh (< 30s old), even if empty list
+    if (this.lastDocumentsFetch > 0 && now - this.lastDocumentsFetch < this.CACHE_DURATION) {
       return this.documents
     }
 
